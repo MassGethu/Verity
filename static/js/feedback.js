@@ -1,0 +1,5 @@
+'use strict';
+const draft=JSON.parse(document.getElementById('compose-data').textContent),gmail=document.getElementById('open-gmail');
+document.getElementById('feedback-editor').addEventListener('input',()=>{gmail.disabled=true;document.getElementById('draft-status').textContent='Unsaved changes. Save the edited draft before opening Gmail.';});
+gmail.addEventListener('click',()=>{const params=new URLSearchParams({view:'cm',fs:'1',to:draft.email,su:draft.subject,body:draft.body});const url='https://mail.google.com/mail/?'+params.toString();if(url.length>7500){document.getElementById('copy-status').textContent='This draft is too long for reliable compose handoff. Use the copy buttons below.';return;}window.open(url,'_blank','noopener,noreferrer');});
+document.querySelectorAll('[data-copy]').forEach(button=>button.addEventListener('click',async()=>{const text=draft[button.dataset.copy]||'';try{await navigator.clipboard.writeText(text);document.getElementById('copy-status').textContent='Copied saved '+button.dataset.copy+'.';}catch(e){document.getElementById('copy-status').textContent='Clipboard unavailable. Select and copy the saved field manually.';}}));
