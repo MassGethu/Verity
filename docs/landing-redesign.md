@@ -1,14 +1,14 @@
 # Landing-page implementation report
 
-The root now presents Verity’s fourteen-section product story. The recruiter overview lives at `/dashboard/`, with real database counts, recent jobs, a session-dismissible configuration notice, and clearly labelled synthetic demo data. Existing job, application, feedback, and candidate-interview routes remain intact.
+The root now presents Verity’s fourteen-section product story. The recruiter overview lives at `/dashboard/`, with real database counts, recent jobs, a session-dismissible configuration notice, and clearly labelled synthetic demo data. Existing job, application and feedback routes remain intact. Candidate-facing interviews have since been replaced by recruiter interview guides; the retired routes return 404.
 
-The landing document has isolated styles and scripts. Candidate cards, source disclosures, the ranking toggle, interview playback, feedback editing playback, and future-feature labels are illustrative. They never create records, call providers, change scores, or launch an email composer. The optional demo CTA resolves a real job containing `demo-fixture` applications; empty installations omit it.
+The landing document has isolated styles and scripts. Candidate cards, source disclosures, the ranking toggle, interview-guide playback, feedback editing playback, and future-feature labels are illustrative. They never create records, call providers, change scores, or launch an email composer. The optional demo CTA resolves a real job containing `demo-fixture` applications; empty installations omit it.
 
 ## Motion integration
 
 Motion 12.23.24 is vendored as an 81 KB vanilla browser bundle with its MIT license and source notice. Deferred loading orders Motion before `landing.js`. No npm installation, build step, or runtime CDN is needed. Google Fonts remain optional, with system fallbacks.
 
-The page uses `animate`, `inView`, `scroll`, `stagger`, `spring`, `hover`, and `press`: a bounded hero entrance, viewport reveals, SVG connectors, natural-scroll workflow progress, score/row entrances, and transform-based ranking reordering. Interview and feedback demonstrations finish on viewport exit or tab hiding, stop timers, preserve complete text, and allow explicit replay. Reduced motion skips choreography and a runtime preference change cancels ongoing animation. Content is visible by default when scripts are missing.
+The page uses `animate`, `inView`, `scroll`, `stagger`, `spring`, `hover`, and `press`: a bounded hero entrance, viewport reveals, SVG connectors, natural-scroll workflow progress, score/row entrances, and transform-based ranking reordering. Guide and feedback demonstrations finish on viewport exit or tab hiding, stop playback scheduling, preserve complete text, and allow explicit replay. Reduced motion skips choreography and a runtime preference change cancels ongoing animation. Content is visible by default when scripts are missing.
 
 ## Files
 
@@ -42,11 +42,11 @@ Modified:
 
 ## Verification
 
-- All **44 Django tests pass**, including the original 38 tests.
+- The current Django suite includes replacement guide tests and migration coverage; see `interview-guide-implementation.md` for the latest verification.
 - Django system check passes; migration-drift check reports no changes.
 - Existing feedback JavaScript check and new landing JavaScript checks pass; edited scripts pass syntax checks.
 - Browser checks cover widths 375, 768, 1280 and 1440 with no horizontal overflow.
-- Browser interaction checks cover mobile menu, Escape/focus restoration, ranking order with unchanged scores and retained focus, source disclosure, interview replay, original-answer availability, feedback playback, notice persistence and dashboard entry.
+- Browser interaction checks cover mobile menu, Escape/focus restoration, ranking order with unchanged scores and retained focus, source disclosure, guide replay and recruiter follow-up editing, feedback playback, notice persistence and dashboard entry.
 - Browser console inspected without application errors; desktop and mobile screenshots captured and reviewed.
 - Missing Motion and reduced-motion behavior are exercised by the dependency-free JavaScript harness. JavaScript-free readability and offline portability are also supported by visible HTML, local assets and font fallbacks; browser network-disconnection and browser-level JavaScript disabling were not emulated.
 
@@ -66,8 +66,9 @@ Open http://127.0.0.1:8000/ for the landing page or http://127.0.0.1:8000/dashbo
 .venv/bin/python manage.py test
 node recruitment/tests/test_feedback_js.cjs
 node recruitment/tests/test_landing_js.cjs
+node recruitment/tests/test_interview_guide_js.cjs
 ```
 
 ## Deliberate simplifications
 
-The marketing interview uses a short prerecorded answer playback rather than a live form; the feedback/Gmail panel is a labelled visual preview. Actual interviews and Gmail handoff remain in the workspace. This avoids side effects during product exploration and is the behavior specified in the plan. Offscreen playback resolves to its complete state instead of pausing midway. No requested section was dropped.
+The marketing guide demonstrates shortlist → source-linked question → accountability scenario → recruiter edit. The feedback/Gmail panel remains a labelled preview. Actual guide preparation/editing and Gmail handoff remain in the workspace. This avoids side effects during product exploration and is the behavior specified in the plan. Offscreen playback resolves to its complete state instead of pausing midway. No requested section was dropped.

@@ -70,13 +70,13 @@ Existing jobs are preserved when rerunning the seed command. The GitHub option i
 | Farhan Ali | Optional explicitly supplied consenting GitHub profile |
 | Gita Nair | Same evidence as Asha and equal score, no GitHub penalty |
 
-A few clearly synthetic interview answers entered during browser verification may be present in the current local database. Fresh installations start with ready candidates; interviews are created through candidate detail.
+Migration 0003 retires the timed interview workflow and deletes its saved answers, evaluations and question cache. Jobs, applications, résumé evidence, recruiter decisions and saved feedback drafts are preserved. Existing shortlisted applications receive pending interview guides without provider calls during migration.
 
 ## Public landing page
 
-The root route presents the product; `/dashboard/` preserves the operational recruiter overview. Existing job, application, and interview URLs are unchanged. Marketing candidate profiles, scores, interview playback, and feedback are labelled illustrative and never call providers or mutate application records. “Explore synthetic demo” appears only when a job contains `demo-fixture` applications.
+The root route presents the product; `/dashboard/` preserves the operational recruiter overview. Existing job and application URLs are unchanged. Retired candidate-interview URLs return 404. Marketing candidate profiles, scores, interview-guide playback, and feedback are labelled illustrative and never call providers or mutate application records. “Explore synthetic demo” appears only when a job contains `demo-fixture` applications.
 
-The landing page has its own CSS and JavaScript. Motion **12.23.24** is pinned locally in `static/vendor/motion/`, with its MIT license; no npm install, build, or runtime CDN is needed. Google Fonts are optional and system fonts work offline. Content remains visible without JavaScript or Motion, and reduced-motion settings skip choreography. Interview/feedback playbacks finish on viewport exit or tab hiding and offer explicit replay.
+The landing page has its own CSS and JavaScript. Motion **12.23.24** is pinned locally in `static/vendor/motion/`, with its MIT license; no npm install, build, or runtime CDN is needed. Google Fonts are optional and system fonts work offline. Content remains visible without JavaScript or Motion, and reduced-motion settings skip choreography. Guide/feedback playbacks finish on viewport exit or tab hiding and offer explicit replay.
 
 Run the existing server command after pulling these changes; no migrations or additional dependencies are needed. The missing-provider notice can be dismissed for the current browser session. Synthetic job titles are simplified only for dashboard display and retain a visible synthetic-data badge.
 
@@ -90,8 +90,9 @@ Run the existing server command after pulling these changes; no migrations or ad
 - Citation-backed requirement and claim explanations.
 - Cautious flags for explicit conflicting statements and visible duration evidence gaps.
 - GitHub public API evidence, limited inspection, 24-hour persisted cache and neutral failure handling.
-- Three-question, six-minute typed interview with server-owned deadlines, autosave revisions and original-answer review.
-- Advisory AI interview analysis without an overall numeric interview score.
+- Automatically prepared, editable six-question interview guides after recruiter shortlisting.
+- Three source-linked profile prompts, one requirement clarification, and two consistent accountability/workplace scenarios.
+- Recruiters conduct interviews themselves; no candidate portal, answer collection, character scoring or automated answer evaluation.
 - Manual shortlist / hold / reject decisions.
 - Constructive SWOT feedback, editable saved email, Gmail compose handoff and copy fallbacks.
 - Clearly marked Digital Footprint Insights future-feature card; no social scraping or scoring.
@@ -108,13 +109,13 @@ flowchart TD
     Scoring --> DB[(SQLite)]
     Views --> GitHub[Bounded GitHub public API inspection]
     GitHub --> DB
-    Views --> Interview[Server deadline + revision-checked answers]
-    Interview --> AI
+    Views --> Guide[Shortlist → evidence-based recruiter questions]
+    Guide --> AI
     Views --> Feedback[Editable feedback + Gmail handoff]
     Views --> Files[Original local PDFs]
 ```
 
-One `recruitment` app, six models: Job, JobRequirement, Application, GitHubAnalysis, Interview, CandidateFeedback. Nested AI data uses JSONField. Independent update workflows have their own models. Business rules live in `recruitment/services/`, not templates.
+One `recruitment` app, six models: Job, JobRequirement, Application, GitHubAnalysis, InterviewGuide, CandidateFeedback. Nested AI data uses JSONField. Independent update workflows have their own models. Business rules live in `recruitment/services/`, not templates.
 
 The browser stores the upload batch first, then POSTs one processing request at a time. There is no background queue. Closing the page leaves remaining files queued; interrupted processing can be retried after 90 seconds. Processing failures do not stop the rest of the batch.
 
@@ -124,12 +125,11 @@ The browser stores the upload batch first, then POSTs one processing request at 
 |---|---|
 | JD requirements | One extraction call, recruiter approval required |
 | Resume parsing + matching + claims | One combined structured call per application/rubric revision |
-| Interview questions | One shared generation per job; standard scenarios on failure |
-| Interview analysis | One call after submission, initiated by recruiter |
+| Interview guide | One personalised structured generation after shortlist; two server-owned shared scenarios; labelled templates on failure |
 | Candidate feedback | One explicit generation; factual editable template on failure |
 | GitHub | No LLM call; actual metadata, README and root-file signals |
 
-All provider outputs are schema-validated. Resume quotes must exactly resolve to supplied blocks. Every requirement must appear exactly once. Strong/moderate evidence requires structured supporting passages. Skills-list-only evidence is capped at mentioned. Experience dates must have quoted support before precise month credit is awarded. Standard interview scenarios and fallback feedback are labelled, not passed off as AI-generated.
+All provider outputs are schema-validated. Resume quotes must exactly resolve to supplied blocks. Every requirement must appear exactly once. Strong/moderate evidence requires structured supporting passages. Skills-list-only evidence is capped at mentioned. Experience dates must have quoted support before precise month credit is awarded. Standard guide prompts, shared situational scenarios and fallback feedback are labelled, not passed off as AI-generated.
 
 ## Scoring
 
@@ -144,7 +144,7 @@ Attainment is 1 for ordinary requirements; minimum experience and project requir
 
 Repeated words do not accumulate points. Common aliases are normalized. Parent-technology inference is explicitly bounded: Django can support Python at moderate, for example. Java is never treated as JavaScript.
 
-An essential match below .75 is flagged for review, not automatically rejected. GitHub, interview interpretation, and review flags never change the base resume score. Missing GitHub creates no penalty. “Evidence coverage” is requirement-weight coverage with direct moderate-or-strong citations, not a model confidence probability.
+An essential match below .75 is flagged for review, not automatically rejected. GitHub, interview guides, and review flags never change the base resume score. Missing GitHub creates no penalty. “Evidence coverage” is requirement-weight coverage with direct moderate-or-strong citations, not a model confidence probability.
 
 Weight changes recalculate scores immediately. Semantic requirement or JD changes increment the rubric revision and exclude stale results until reanalysis. Ranking uses unrounded score, then fewer essential gaps, then stable application ID.
 
@@ -156,17 +156,21 @@ Inspect up to 30 owned repositories, choose up to three non-forks by requirement
 
 “No additional evidence found” means only that the bounded inspection found none. It does not imply the skill is false.
 
-## Interview behavior
+## Evidence-based Interview Guide
 
-Starting sets one immutable server deadline six minutes in the future. Refresh restores saved text and remaining time. One-second debounced saves plus periodic saves send the entire answer snapshot with a revision number. Conditional database updates prevent older snapshots overwriting newer ones. Submission is idempotent and locks responses; the inline confirmation requires a second click.
+Shortlisting saves the recruiter’s decision immediately and creates a pending guide. Candidate detail automatically POSTs guide preparation once current résumé analysis and approved requirements are available. Without JavaScript, the recruiter uses **Prepare interview guide**. The shortlist decision never depends on provider availability.
 
-At expiry, the last snapshot received before the server deadline is final. Writes received after the deadline cannot change it. Disconnected/unsaved final text cannot be guaranteed to arrive; the instructions state that limit. Expiry finalizes on the next server request without a scheduler.
+Each saved guide contains three profile-specific questions, one evidence-gap clarification and two standard workplace scenarios about accountability and competing commitments. Profile prompts cite actual supplied passages; clarification links the relevant requirement. Each includes its purpose and an optional follow-up. The recruiter edits, saves and copies the guide, then conducts the interview through their normal process.
 
-Original answers stay available even if AI analysis fails. Evaluation uses a question-specific advisory rubric and exact answer excerpts. It does not assess morality, mental health, protected characteristics, or scientific personality traits.
+One provider operation prepares the four personalised prompts. Only relevant quoted evidence and approved job requirements are supplied; contact details and social links are excluded. Source references, requirement IDs and the question mix are validated. Named/quantified premises are checked against supporting text, but exact citation fidelity still cannot guarantee perfect semantic interpretation; recruiters review every prompt. Failure produces a clearly labelled evidence-based template, not simulated AI output. A candidate with little supplied evidence receives neutral prompts, not invented experience.
+
+Repeated shortlisting reuses saved questions and edits. Changes to job title, description, requirements or relevant evidence mark the guide outdated and require explicit regeneration. Regeneration has a replacement confirmation. Revision checks protect edits across tabs, and a 90-second generation lease prevents competing requests; superseded or changed-context outputs cannot overwrite newer results. Preparation can be retried after an interruption.
+
+The new POST routes are `/applications/<id>/interview-guide/generate/` and `/applications/<id>/interview-guide/save/`. There are no candidate links, timers, answer storage, interview ratings, values scores or interview-performance filters. Situational questions explore workplace actions and reasoning; they do not establish personal character or private beliefs.
 
 ## Feedback and Gmail
 
-Rejected status must be explicitly chosen by a recruiter. Feedback requires a job-related reason and current resume analysis. Interview findings are opt-in. Candidate-facing “Threats” are labelled “Role-specific challenges.” Missing evidence is not inability.
+Rejected status must be explicitly chosen by a recruiter. Feedback requires a job-related reason and current resume analysis. Interview-guide questions are never treated as candidate answers or included as evaluated interview findings. Recruiters can supply factual job-related reasons from their own review. Candidate-facing “Threats” are labelled “Role-specific challenges.” Missing evidence is not inability.
 
 The recruiter edits and saves subject/body/recipient. Any unsaved edit disables Gmail handoff until saved. Compose values are URL-encoded; long drafts use copy controls. Gmail compose URLs are a browser convention, not a guaranteed API contract. Sign in to Gmail yourself and verify compose behavior in your intended browser. Verity never sends mail.
 
@@ -177,17 +181,18 @@ python manage.py check
 python manage.py test
 node recruitment/tests/test_feedback_js.cjs
 node recruitment/tests/test_landing_js.cjs
+node recruitment/tests/test_interview_guide_js.cjs
 ```
 
-Focused automated tests cover score weighting, threshold attainment, interval union, aliases, parent caps, exact quotes, incomplete JSON, provider fallback, missing keys, invalid PDFs, duplicates, filtering, stale analyses, weight edits, GitHub cache/failure neutrality, interview refresh/deadline/revisions/submission, evaluation failures, decisions and feedback persistence.
+Focused automated tests cover score weighting, threshold attainment, interval union, aliases, parent caps, exact quotes, incomplete JSON, provider fallback, missing keys, invalid PDFs, duplicates, filtering, stale analyses, weight edits, GitHub cache/failure neutrality, guide grounding, shortlist preparation, edit revisions, stale inputs, concurrent generation, provider fallback and retired-route/migration checks, decisions and feedback persistence.
 
-Browser verification covers desktop/mobile layout, original-source views, interview start/autosave/refresh/expiry/submission and feedback editing. Live AI was unavailable during implementation because keys were absent. GitHub transport is tested with deterministic mocked API responses; a consenting real profile and Gmail sign-in remain user-dependent integration checks.
+Browser verification covers desktop/mobile layout, original-source views, automatic guide preparation, source disclosures, editing/saving/copying and guide playback and feedback editing. Live AI was unavailable during implementation because keys were absent. GitHub transport is tested with deterministic mocked API responses; a consenting real profile and Gmail sign-in remain user-dependent integration checks.
 
 ## Screenshots
 
 ![Candidate ranking](docs/screenshots/dashboard.jpg)
 
-![Evidence profile](docs/screenshots/candidate.jpg)
+![Evidence-based interview guide](docs/screenshots/interview-guide.jpg)
 
 ![Feedback editor](docs/screenshots/feedback.jpg)
 
@@ -199,14 +204,14 @@ Browser verification covers desktop/mobile layout, original-source views, interv
 4. Show Esha's visible-duration flag and both passages, stressing incomplete evidence.
 5. Compare Asha and Gita: equal supplied evidence, no GitHub penalty.
 6. If a consenting profile was supplied, inspect Farhan's public evidence; otherwise explicitly show the empty state.
-7. Create/start a typed interview or review genuinely saved synthetic demo answers.
+7. Shortlist a candidate, show the automatically prepared guide, inspect a cited passage, and edit/save a follow-up. Explain the two shared accountability/workplace scenarios.
 8. Make a manual decision, generate/edit/save feedback, and open Gmail or copy the saved draft.
 
 For live AI demonstration, use a separately seeded `--live` job or upload one fresh PDF. Do not present rules-based fixtures as live provider results.
 
 ## Limitations and fairness
 
-- Local, single-recruiter demo with no public access-control boundary. Candidate tokens are not production authentication.
+- Local, single-recruiter demo with no public access-control boundary. The interview guide is recruiter-facing; there is no candidate access flow.
 - No OCR; text layout and semantic interpretation may be imperfect.
 - Quote fidelity does not verify real-world truth. Models can still misinterpret a valid passage.
 - An incomplete timeline is not proof of contradiction. All review flags require human review and never reduce scores directly.

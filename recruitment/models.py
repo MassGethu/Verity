@@ -10,7 +10,6 @@ class Job(models.Model):
     requirements_revision = models.PositiveIntegerField(default=1)
     extraction_meta = models.JSONField(default=dict)
     requirements_approved = models.BooleanField(default=False)
-    question_set = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
 
 class JobRequirement(models.Model):
@@ -67,19 +66,23 @@ class GitHubAnalysis(models.Model):
     retry_at = models.DateTimeField(null=True)
     error = models.TextField(blank=True)
 
-class Interview(models.Model):
-    application = models.OneToOneField(Application, on_delete=models.CASCADE, related_name='interview')
-    access_token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
-    questions = models.JSONField(default=list)
-    question_source = models.CharField(max_length=100, blank=True)
-    answers = models.JSONField(default=dict)
-    answer_revision = models.PositiveIntegerField(default=0)
-    status = models.CharField(max_length=20, default='ready')
-    started_at = models.DateTimeField(null=True)
-    deadline_at = models.DateTimeField(null=True)
-    submitted_at = models.DateTimeField(null=True)
-    evaluation = models.JSONField(default=dict)
+class InterviewGuide(models.Model):
+    application = models.OneToOneField(Application, on_delete=models.CASCADE, related_name='interview_guide')
+    generated_questions = models.JSONField(default=list)
+    edited_questions = models.JSONField(default=list)
+    status = models.CharField(max_length=20, default='pending')
+    context_fingerprint = models.CharField(max_length=64, blank=True)
+    edit_revision = models.PositiveIntegerField(default=0)
+    provenance = models.JSONField(default=dict)
     error = models.TextField(blank=True)
+    generation_token = models.UUIDField(null=True, editable=False)
+    processing_started_at = models.DateTimeField(null=True)
+    generated_at = models.DateTimeField(null=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def questions(self):
+        return self.edited_questions or self.generated_questions
 
 class CandidateFeedback(models.Model):
     application = models.OneToOneField(Application, on_delete=models.CASCADE, related_name='feedback')

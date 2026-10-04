@@ -7,12 +7,11 @@ from django.urls import reverse
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from reportlab.pdfgen import canvas
-from recruitment.models import Job, JobRequirement, Application, Interview, CandidateFeedback
+from recruitment.models import Job, JobRequirement, Application, CandidateFeedback
 from recruitment.schemas import ResumeOutput
 from recruitment.services.scoring_service import calculate, relevant_months, canonical
 from recruitment.services.evidence_service import validate_analysis
 from recruitment.services.resume_service import extract_pdf, upload_resume, process_application
-from recruitment.services.interview_service import DEFAULT_QUESTIONS, start, save_answers, finalize_expired
 from recruitment.services.feedback_service import generate_feedback
 from recruitment.services.github_service import username_from_url, fetch_github, GitHubError
 from recruitment.services.providers import generate, AIUnavailable
@@ -101,22 +100,6 @@ class WorkflowTests(TestCase):
         for url in ['https://evil.com/example','http://github.com/example','https://github.com/example/repo','https://github.com/settings']:
             with self.assertRaises(GitHubError):username_from_url(url)
         self.assertEqual(username_from_url('https://github.com/example/repo',True),'example')
-    def test_interview_deadline_refresh_and_conflict(self):
-        interview=Interview.objects.create(application=self.app,questions=DEFAULT_QUESTIONS)
-        start(interview);deadline=interview.deadline_at;start(interview);self.assertEqual(interview.deadline_at,deadline)
-        answers={q['id']:'My reasoning' for q in DEFAULT_QUESTIONS};save_answers(interview,answers,0)
-        self.assertEqual(interview.answer_revision,1)
-        with self.assertRaises(ValueError):save_answers(interview,{**answers,'q1':'Old snapshot'},0)
-        self.assertEqual(self.client.get(reverse('interview',args=[interview.access_token])).status_code,200)
-        Interview.objects.filter(pk=interview.pk).update(deadline_at=timezone.now()-timedelta(seconds=1));interview.refresh_from_db()
-        save_answers(interview,{**answers,'q1':'Late edit'},1)
-        self.assertEqual(interview.status,'submitted');self.assertEqual(interview.answers['q1'],'My reasoning')
-    def test_interview_duplicate_submission(self):
-        i=Interview.objects.create(application=self.app,questions=DEFAULT_QUESTIONS);start(i);answers={q['id']:'Answer' for q in DEFAULT_QUESTIONS};save_answers(i,answers,0,True);save_answers(i,answers,0,True);self.assertEqual(i.answer_revision,1)
-    def test_interview_evaluation_failure_preserves_answers(self):
-        i=Interview.objects.create(application=self.app,questions=DEFAULT_QUESTIONS,status='submitted',answers={'q1':'Original'})
-        with patch('recruitment.services.ai_service.evaluate_interview',side_effect=AIUnavailable('Unavailable')):self.client.post(reverse('interview_evaluate',args=[self.app.pk]))
-        i.refresh_from_db();self.assertEqual(i.answers['q1'],'Original');self.assertTrue(i.error)
     def test_feedback_requires_rejection(self):
         with self.assertRaises(ValueError):generate_feedback(self.app,'Missing deployment evidence')
     def test_feedback_fallback_and_edit_persistence(self):
@@ -129,9 +112,6 @@ class WorkflowTests(TestCase):
     def test_decision_is_manual(self):
         self.client.post(reverse('decision',args=[self.app.pk]),{'status':'shortlisted','reason':'Evidence reviewed'})
         self.app.refresh_from_db();self.assertEqual(self.app.decision_status,'shortlisted')
-    def test_bad_json_interview_request(self):
-        i=Interview.objects.create(application=self.app,questions=DEFAULT_QUESTIONS)
-        response=self.client.post(reverse('interview_api',args=[i.access_token]),data='[]',content_type='application/json');self.assertEqual(response.status_code,409)
     def test_resume_download(self):
         response=self.client.get(reverse('resume',args=[self.app.pk]));self.assertEqual(response.status_code,200);self.assertEqual(response['Content-Type'],'application/pdf');response.close()
 

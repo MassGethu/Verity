@@ -71,12 +71,11 @@
   // complete state so no hidden timer runs or partial content remains stranded.
   document.querySelectorAll('[data-demo]').forEach(element => {
     const replay = element.querySelector('[data-replay]');
-    const interview = element.dataset.demo === 'interview';
-    const answer = element.querySelector('[data-sample-answer]');
-    const original = answer?.textContent;
-    const result = element.querySelector('[data-demo-result]');
-    const timer = element.querySelector('[data-demo-timer]');
-    const state = element.querySelector(interview ? '[data-demo-state]' : '[data-feedback-state]');
+    const guide = element.dataset.demo === 'guide';
+    const steps = element.querySelectorAll('.guide-preview-step');
+    const followUp = element.querySelector('[data-guide-follow-up]');
+    const originalFollowUp = followUp?.textContent;
+    const state = element.querySelector(guide ? '[data-guide-demo-state]' : '[data-feedback-state]');
     const sentence = element.querySelector('[data-edited-sentence]');
     const edited = sentence?.textContent;
     const gmail = element.querySelector('[data-gmail-preview]');
@@ -89,14 +88,10 @@
     };
     const completed = () => {
       clear();
-      if (interview) {
-        answer.textContent = original;
-        timer.textContent = '01:42';
-        result.style.opacity = '';
-        result.style.visibility = '';
-        result.style.transform = '';
-        result.inert = false;
-        state.textContent = 'Example answer submitted · advisory review complete';
+      if (guide) {
+        steps.forEach(step => { step.style.opacity = ''; step.style.transform = ''; });
+        followUp.textContent = originalFollowUp;
+        state.textContent = 'Guide prepared · recruiter follow-up saved';
       } else {
         sentence.textContent = edited;
         sentence.style.opacity = '';
@@ -112,27 +107,13 @@
       played = true;
       if (!canAnimate()) return;
       replay.disabled = true;
-      if (interview) {
-        answer.textContent = '';
-        result.style.visibility = 'hidden';
-        result.inert = true;
-        state.textContent = 'Entering an example answer…';
-        const started = performance.now();
-        handles.push(setInterval(() => {
-          const elapsed = performance.now() - started;
-          answer.textContent = original.slice(0, Math.min(original.length, Math.floor(elapsed / 12)));
-          const seconds = 102 - Math.min(7, Math.floor(elapsed / 1000));
-          timer.textContent = `01:${String(seconds - 60).padStart(2, '0')}`;
-        }, 40));
-        later(() => { answer.textContent = original; state.textContent = 'Example answer submitted'; }, 3500);
-        later(() => { state.textContent = 'Reviewing the example answer…'; }, 4100);
-        later(() => {
-          result.style.visibility = '';
-          result.inert = false;
-          controls.push(animate(result, { opacity: [0, 1], y: [8, 0] }, { duration: .45 }));
-          state.textContent = 'Advisory review complete · original answer preserved';
-        }, 5500);
-        later(completed, 7500);
+      if (guide) {
+        state.textContent = 'Shortlisted · preparing evidence-based questions…';
+        followUp.textContent = 'Follow-up: How did you test the permissions?';
+        controls.push(animate(steps, { opacity: [.25, 1], y: [6, 0] }, { duration: .5, delay: motion.stagger(.65) }));
+        later(() => { state.textContent = 'Profile passage linked · accountability scenario added'; }, 1800);
+        later(() => { followUp.textContent = originalFollowUp; state.textContent = 'Recruiter adds a concrete follow-up…'; controls.push(animate(followUp, { opacity: [.4, 1] }, { duration: .4 })); }, 2800);
+        later(completed, 4200);
       } else {
         state.textContent = 'AI draft prepared · recruiter reviewing';
         sentence.textContent = 'Consider adding more detail to your deployment experience.';
@@ -212,7 +193,7 @@
     if (preference.matches) {
       cleanups.splice(0).forEach(cleanup => cleanup?.());
       resetVisuals();
-      document.querySelectorAll('.button, .segmented button, .replay, .ranking-list li, .match-detail, [data-demo-result]').forEach(element => { element.style.transform = ''; element.style.opacity = ''; });
+      document.querySelectorAll('.button, .segmented button, .replay, .ranking-list li, .match-detail, .guide-preview-step').forEach(element => { element.style.transform = ''; element.style.opacity = ''; });
     }
   });
   document.addEventListener('visibilitychange', () => {

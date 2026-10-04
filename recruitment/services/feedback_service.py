@@ -2,12 +2,12 @@ from django.utils import timezone
 from ..models import CandidateFeedback
 from . import ai_service
 
-def generate_feedback(application,reason,include_interview=False):
+def generate_feedback(application,reason):
     if application.decision_status!='rejected': raise ValueError('Feedback is available after a recruiter rejects the application.')
     if not reason.strip(): raise ValueError('Enter a job-related reason first.')
     if application.processing_status!='complete' or application.analysis_revision!=application.job.requirements_revision: raise ValueError('Complete current analysis before generating feedback.')
     try:
-        data,meta=ai_service.generate_candidate_feedback(application,reason,include_interview)
+        data,meta=ai_service.generate_candidate_feedback(application,reason)
         data['source']=meta['provider']+' / '+meta['model']; data['provenance']={**meta,'generated_at':timezone.now().isoformat()}
     except Exception:
         strong=[r['label'] for r in application.breakdown['rows'] if r['match']>=.75]

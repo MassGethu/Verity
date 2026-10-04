@@ -1,0 +1,31 @@
+<details class="panel guide-panel" id="interview-guide" open>
+  <summary class="section-title guide-toggle"><div><div class="eyebrow">FROM EVIDENCE TO CONVERSATION</div><h2>Evidence-based Interview Guide</h2><span class="muted small">Recruiter-led · no score impact</span></div><span class="guide-toggle-label"><span class="guide-minimise">Minimise guide −</span><span class="guide-expand">Expand guide +</span></span></summary>
+  <div class="guide-content">
+  <p>Understand the skills. Ask the questions that matter.</p>
+  <p class="muted small">Three profile questions, one clarification, and two consistent workplace scenarios. Explore accountability through actions and follow-ups; these prompts do not establish personal character. Conduct the interview through your usual process.</p>
+  <div id="guide-progress" class="notice info" role="status" hidden>Preparing your interview guide… Your shortlist decision is already saved.</div>
+  {% if guide_stale %}<div class="notice warning">This guide is outdated because the requirements or relevant résumé evidence changed. Review and explicitly regenerate it. Your previous edits are preserved below.</div>{% endif %}
+  {% if guide.error %}<div class="notice warning">{{ guide.error }}</div>{% endif %}
+  {% if guide_questions %}
+    <div class="guide-provenance"><span class="badge {% if guide.provenance.provider == 'template' %}weak{% else %}supported{% endif %}">{{ guide.provenance.source }}</span><p class="muted small">{{ guide.provenance.provider }} · {{ guide.provenance.model }} · {{ guide.provenance.prompt_version }} · {{ guide.generated_at|date:'M j, Y H:i' }}{% if guide.edited_questions %} · Recruiter edited{% endif %}</p></div>
+    <form method="post" action="{% url 'guide_save' application.pk %}" id="guide-edit-form">{% csrf_token %}<input type="hidden" name="revision" value="{{ guide.edit_revision }}">
+      {% for question in guide_questions %}<article class="guide-question" data-guide-question data-question-id="{{ question.id }}">
+        <div class="section-title"><h3>{{ forloop.counter }}. {% if question.kind == 'situational' %}Workplace scenario{% elif question.kind == 'clarification' %}Clarify the evidence{% else %}Explore the profile{% endif %}</h3><span class="badge neutral">{{ question.kind|title }}</span></div>
+        <label>Question<textarea name="{{ question.id }}-question" data-field="question" maxlength="2000" rows="3" required {% if guide_stale or guide.status == 'processing' %}disabled{% endif %}>{{ question.question }}</textarea></label>
+        <label>Why ask this?<textarea name="{{ question.id }}-purpose" data-field="purpose" maxlength="1500" rows="2" required {% if guide_stale or guide.status == 'processing' %}disabled{% endif %}>{{ question.purpose }}</textarea></label>
+        <label>Optional follow-up<textarea name="{{ question.id }}-follow_up" data-field="follow_up" maxlength="1500" rows="2" {% if guide_stale or guide.status == 'processing' %}disabled{% endif %}>{{ question.follow_up }}</textarea></label>
+        {% for id in question.requirement_ids %}{% for requirement in job.requirements.all %}{% if requirement.pk == id %}<p class="small muted">Job requirement: <strong>{{ requirement.label }}</strong></p>{% endif %}{% endfor %}{% endfor %}
+        {% for ref in question.refs %}<blockquote>{{ ref.exact_quote }}<a href="#source-{{ ref.block_id }}" data-guide-source>Résumé page {{ ref.page }} · {{ ref.block_id }} →</a></blockquote>{% empty %}{% if question.kind == 'situational' %}<p class="muted small">Shared scenario. No claim about this candidate’s past behaviour.</p>{% else %}<p class="muted small">No supporting passage supplied. This is a neutral prompt to clarify relevant experience.</p>{% endif %}{% endfor %}
+      </article>{% endfor %}
+      <div class="form-actions"><span id="guide-save-status" class="muted small" role="status">{% if guide.edited_questions %}Recruiter edits saved{% else %}Prepared guide saved{% endif %}</span><button type="submit" {% if guide_stale or guide.status == 'processing' %}disabled{% endif %}>Save guide edits</button><button class="button secondary" type="button" id="copy-guide" hidden>Copy guide</button></div>
+    </form>
+  {% else %}
+    {% if application.decision_status != 'shortlisted' %}<div class="empty compact"><h3>Shortlist to prepare a conversation.</h3><p>Once you shortlist this candidate, Verity prepares questions grounded in their supplied evidence.</p></div>{% endif %}
+  {% endif %}
+  {% if application.decision_status == 'shortlisted' %}
+    {% if not guide_eligible %}<div class="notice info">Approve the job requirements and complete current résumé analysis before preparing a guide.</div>
+    {% elif guide.status == 'processing' %}<div class="notice info">Guide preparation is in progress. Reload to see the result. An interrupted request can be retried after 90 seconds.</div><form method="post" action="{% url 'guide_generate' application.pk %}" data-guide-generate>{% csrf_token %}<input type="hidden" name="revision" value="{{ guide.edit_revision }}">{% if guide_questions %}<label class="check"><input type="checkbox" name="replace" required> Regenerate and replace this guide and any saved edits</label>{% endif %}<button class="button secondary">Retry interrupted preparation</button></form>
+    {% else %}<form method="post" action="{% url 'guide_generate' application.pk %}" data-guide-generate>{% csrf_token %}<input type="hidden" name="revision" value="{{ guide.edit_revision|default:0 }}">{% if guide_questions %}<label class="check"><input type="checkbox" name="replace" required> Regenerate and replace this guide and any saved edits</label>{% endif %}<button class="button secondary">{% if guide_questions %}Regenerate / retry AI{% else %}Prepare interview guide{% endif %}</button></form>{% endif %}
+  {% elif guide_questions %}<p class="muted small">Your saved guide remains available. Shortlist again to regenerate it.</p>{% endif %}
+  </div>
+</details>

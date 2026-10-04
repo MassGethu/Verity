@@ -3,7 +3,7 @@ from unittest.mock import patch
 from django.test import TestCase
 from django.urls import reverse
 
-from recruitment.models import Application, CandidateFeedback, GitHubAnalysis, Interview, Job, JobRequirement
+from recruitment.models import Application, CandidateFeedback, GitHubAnalysis, InterviewGuide, Job, JobRequirement
 
 
 class LandingTests(TestCase):
@@ -45,12 +45,12 @@ class LandingTests(TestCase):
     def test_dashboard_counts_and_synthetic_display_preserve_database(self, configured):
         normal = Job.objects.create(title='A real opening', description='Not a fixture')
         Application.objects.create(job=normal, filename='other.pdf', sha256='b' * 64, decision_status='shortlisted')
-        Interview.objects.create(application=self.application)
+        InterviewGuide.objects.create(application=self.application,status='ready')
         response = self.client.get(reverse('dashboard'))
         self.assertEqual(len(response.context['jobs']), 2)
         self.assertEqual(response.context['application_count'], 2)
         self.assertEqual(response.context['pending_count'], 1)
-        self.assertEqual(response.context['interview_count'], 1)
+        self.assertEqual(response.context['guide_count'], 1)
         self.assertContains(response, 'Synthetic demo data')
         self.assertContains(response, '<h3>Backend Developer Intern</h3>', html=True)
         self.assertContains(response, 'data-dismiss-notice')
@@ -61,7 +61,7 @@ class LandingTests(TestCase):
     @patch('recruitment.services.providers.generate', side_effect=AssertionError('Landing must not call AI'))
     @patch('recruitment.services.github_service.fetch_github', side_effect=AssertionError('Landing must not fetch GitHub'))
     def test_landing_is_read_only_and_never_calls_providers(self, github, generate):
-        models = [Job, JobRequirement, Application, Interview, CandidateFeedback, GitHubAnalysis]
+        models = [Job, JobRequirement, Application, InterviewGuide, CandidateFeedback, GitHubAnalysis]
         before = [list(model.objects.order_by('pk').values()) for model in models]
         self.client.get('/')
         self.client.get('/')
@@ -77,5 +77,4 @@ class LandingTests(TestCase):
         self.assertContains(response, 'href="/dashboard/"')
         self.assertContains(response, 'View public site')
         self.assertEqual(self.client.get(reverse('candidate', args=[self.application.pk])).status_code, 200)
-        interview = Interview.objects.create(application=self.application)
-        self.assertEqual(self.client.get(reverse('interview', args=[interview.access_token])).status_code, 200)
+        self.assertEqual(self.client.get('/interview/00000000-0000-0000-0000-000000000001/').status_code, 404)

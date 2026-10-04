@@ -9,9 +9,9 @@ from django.urls import reverse
 from django.utils import timezone
 from django.contrib import messages
 from django.views.decorators.http import require_POST
-from .models import Job, JobRequirement, Application, Interview, CandidateFeedback
+from .models import Job, JobRequirement, Application, InterviewGuide, CandidateFeedback
 from .forms import JobForm, RequirementSet
-from .services import ai_service, resume_service, github_service, interview_service, feedback_service
+from .services import ai_service, resume_service, github_service, interview_guide_service, feedback_service
 from .services.providers import configured
 from .services.scoring_service import VALUES
 
@@ -30,7 +30,7 @@ def home(request):
         'jobs': jobs, 'ai_configured': configured(),
         'application_count': Application.objects.count(),
         'pending_count': Application.objects.filter(decision_status='pending').count(),
-        'interview_count': Interview.objects.count(),
+        'guide_count': InterviewGuide.objects.filter(status='ready').count(),
     })
 
 def job_create(request):
@@ -61,9 +61,8 @@ def job_setup(request,pk):
                 for n,r in enumerate(job.requirements.all()): r.display_order=n; r.save(update_fields=['display_order'])
                 changed=before!=semantic_requirements(job) or description_changed
                 if changed:
-                    job.requirements_revision+=1; job.question_set={}
+                    job.requirements_revision+=1
                     job.applications.update(processing_status='stale',score=None)
-                if job.title!=old.title: job.question_set={}
                 job.requirements_approved=True; job.save()
                 if not changed:
                     for app in job.applications.filter(processing_status='complete'): resume_service.rescore(app)
@@ -116,18 +115,22 @@ def process(request,pk):
 
 def candidate_detail(request,pk):
     app=get_object_or_404(Application.objects.select_related('job'),pk=pk)
-    interview=Interview.objects.filter(application=app).first()
-    if interview: interview_service.finalize_expired(interview)
+    guide=InterviewGuide.objects.filter(application=app).first()
+    guide_stale=interview_guide_service.stale(guide,app) if guide else False
+    guide_eligible=interview_guide_service.eligible(app)
+    auto_prepare=bool(guide and guide.status=='pending' and app.decision_status=='shortlisted' and guide_eligible)
     rows=[]
     if app.analysis_revision==app.job.requirements_revision:
         sources={b['id']:b for b in app.source_blocks}
         for row in app.breakdown.get('rows',[]):
             row={**row,'refs':[{**r,'page':sources.get(r['block_id'],{}).get('page')} for r in row['source_refs']]}; rows.append(row)
-    answers=[]
-    if interview:
-        evaluations={r['question_id']:r for r in interview.evaluation.get('responses',[])}
-        answers=[{'question':q,'answer':interview.answers.get(q['id'],''),'evaluation':evaluations.get(q['id'])} for q in interview.questions]
-    return render(request,'recruitment/detail.html',{'application':app,'job':app.job,'rows':rows,'interview':interview,'answers':answers,'github':getattr(app,'github_analysis',None),'statuses':['pending','shortlisted','hold','rejected'],'current':app.processing_status=='complete' and app.analysis_revision==app.job.requirements_revision})
+    guide_questions=[]
+    sources={b['id']:b for b in app.source_blocks}
+    if guide:
+        for question in guide.questions:
+            guide_questions.append({**question,'refs':[{**ref,'page':sources.get(ref['block_id'],{}).get('page')} for ref in question['source_refs']]})
+    guide_state={'auto_prepare':auto_prepare,'generate_url':reverse('guide_generate',args=[app.pk]),'save_url':reverse('guide_save',args=[app.pk]),'revision':guide.edit_revision if guide else 0}
+    return render(request,'recruitment/detail.html',{'application':app,'job':app.job,'rows':rows,'guide':guide,'guide_questions':guide_questions,'guide_stale':guide_stale,'guide_eligible':guide_eligible,'guide_state':guide_state,'github':getattr(app,'github_analysis',None),'statuses':['pending','shortlisted','hold','rejected'],'current':app.processing_status=='complete' and app.analysis_revision==app.job.requirements_revision})
 
 def resume_file(request,pk):
     app=get_object_or_404(Application,pk=pk)
@@ -139,8 +142,9 @@ def decision(request,pk):
     status=request.POST.get('status')
     if status not in ['pending','shortlisted','hold','rejected']: return HttpResponseBadRequest('Invalid decision')
     app.decision_status=status; app.decision_reason=request.POST.get('reason','')[:3000]; app.save(update_fields=['decision_status','decision_reason'])
+    if status=='shortlisted': interview_guide_service.ensure_pending(app)
     messages.success(request,'Recruiter decision saved. AI does not make hiring decisions.')
-    return redirect('candidate',pk=pk)
+    return redirect(reverse('candidate',args=[pk])+('#interview-guide' if status=='shortlisted' else ''))
 
 @require_POST
 def contact(request,pk):
@@ -160,40 +164,41 @@ def github(request,pk):
     else: messages.success(request,'Public GitHub evidence inspected. Resume score is unchanged.')
     return redirect('candidate',pk=pk)
 
+def guide_response(request, application, operation):
+    ajax=request.headers.get('X-Requested-With')=='XMLHttpRequest'
+    try:
+        if ajax:
+            payload=json.loads(request.body)
+            if not isinstance(payload,dict): raise ValueError('Invalid guide request.')
+        else:
+            payload=request.POST
+        revision=int(payload.get('revision',0))
+        if operation=='generate':
+            replace=payload.get('replace') in [True,'on','true']
+            guide=interview_guide_service.generate_guide(application,replace=replace,revision=revision)
+        else:
+            if ajax:
+                edits=payload.get('questions')
+            else:
+                guide=get_object_or_404(InterviewGuide,application=application)
+                edits=[{'id':q['id'],'question':payload.get(q['id']+'-question',''),'purpose':payload.get(q['id']+'-purpose',''),'follow_up':payload.get(q['id']+'-follow_up','')} for q in guide.generated_questions]
+            guide=interview_guide_service.save_edits(application,revision,edits)
+        if ajax: return JsonResponse({'status':guide.status,'revision':guide.edit_revision})
+        messages.success(request,'Interview guide saved. Review the prompts before your conversation.')
+    except (ValueError,TypeError,InterviewGuide.DoesNotExist) as exc:
+        if ajax: return JsonResponse({'error':str(exc)},status=409)
+        messages.error(request,str(exc))
+    return redirect(reverse('candidate',args=[application.pk])+'#interview-guide')
+
 @require_POST
-def interview_create(request,pk):
+def guide_generate(request,pk):
     app=get_object_or_404(Application.objects.select_related('job'),pk=pk)
-    interview_service.create_interview(app)
-    return redirect('candidate',pk=pk)
-
-def interview_page(request,token):
-    interview=get_object_or_404(Interview.objects.select_related('application__job'),access_token=token)
-    interview_service.finalize_expired(interview)
-    state={'status':interview.status,'revision':interview.answer_revision,'answers':interview.answers,'server_now':timezone.now().isoformat(),'deadline':interview.deadline_at.isoformat() if interview.deadline_at else None,'url':reverse('interview_api',args=[token])}
-    return render(request,'recruitment/interview.html',{'interview':interview,'state':state,'standalone':True})
+    return guide_response(request,app,'generate')
 
 @require_POST
-def interview_api(request,token):
-    interview=get_object_or_404(Interview,access_token=token)
-    try:
-        payload=json.loads(request.body)
-        if not isinstance(payload,dict): raise ValueError('Invalid request')
-        if payload.get('action')=='start': interview_service.start(interview)
-        elif payload.get('action') in ['save','submit']:
-            interview_service.save_answers(interview,payload.get('answers'),payload.get('revision'),payload['action']=='submit')
-        else: raise ValueError('Invalid action')
-        return JsonResponse({'status':interview.status,'revision':interview.answer_revision,'answers':interview.answers,'server_now':timezone.now().isoformat(),'deadline':interview.deadline_at.isoformat() if interview.deadline_at else None})
-    except (ValueError,TypeError) as exc: return JsonResponse({'error':str(exc)},status=409)
-
-@require_POST
-def interview_evaluate(request,pk):
-    app=get_object_or_404(Application,pk=pk); interview=get_object_or_404(Interview,application=app); interview_service.finalize_expired(interview)
-    if interview.status!='submitted': messages.error(request,'Submit the interview before analysis.'); return redirect('candidate',pk=pk)
-    if interview.evaluation: messages.info(request,'Saved evaluation is already available.'); return redirect('candidate',pk=pk)
-    try:
-        data,meta=ai_service.evaluate_interview(interview); data['source']=meta['provider']+' / '+meta['model']; data['provenance']={**meta,'generated_at':timezone.now().isoformat()}; interview.evaluation=data; interview.error=''; interview.save()
-    except Exception as exc: interview.error=str(exc); interview.save(update_fields=['error']); messages.warning(request,str(exc))
-    return redirect('candidate',pk=pk)
+def guide_save(request,pk):
+    app=get_object_or_404(Application.objects.select_related('job'),pk=pk)
+    return guide_response(request,app,'save')
 
 def feedback(request,pk):
     app=get_object_or_404(Application.objects.select_related('job'),pk=pk)
@@ -205,7 +210,7 @@ def feedback(request,pk):
             else:
                 try:
                     reason=request.POST.get('reason','').strip()
-                    draft=feedback_service.generate_feedback(app,reason,request.POST.get('include_interview')=='on')
+                    draft=feedback_service.generate_feedback(app,reason)
                     app.decision_reason=reason; app.save(update_fields=['decision_reason']); messages.success(request,'Draft prepared. Review and edit before opening Gmail.')
                 except ValueError as exc: messages.error(request,str(exc))
         elif request.POST.get('action')=='save':

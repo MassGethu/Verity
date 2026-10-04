@@ -1265,111 +1265,18 @@ svg.icon {
   font-size:10px;
   color:#5a6a50
 }
-.interview-demo {
-  padding:26px;
-  background:white;
-  border:1px solid #d7e2ce;
-  border-radius:13px;
-  box-shadow:0 20px 40px -25px #3b5f3b33
+.guide-demo {
+  padding:26px;background:white;border:1px solid #d7e2ce;border-radius:13px;box-shadow:0 20px 40px -25px #3b5f3b33;
 }
-.interview-meta {
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  font-size:8px;
-  font-weight:600;
-  letter-spacing:.1em;
-  color:#606a58;
-  margin-bottom:16px
-}
-.timer {
-  background:#eef4e7;
-  padding:6px 11px;
-  color:#4f6c46;
-  border-radius:5px;
-  font-size:12px;
-  letter-spacing:.03em;
-  font-variant-numeric:tabular-nums
-}
-.interview-demo h3 {
-  font-size:16px;
-  line-height:1.5;
-  letter-spacing:-.02em
-}
-.sample-answer {
-  min-height:128px;
-  margin-top:17px;
-  padding:15px;
-  background:#fafbf7;
-  border:1px solid #dfe7d7;
-  border-radius:7px;
-  font-size:11px;
-  line-height:1.9;
-  color:#5c6c52
-}
-.demo-controls {
-  display:flex;
-  justify-content:space-between;
-  gap:12px;
-  align-items:center;
-  margin-block:16px;
-  font-size:9px;
-  color:#5f6c53;
-  min-height:25px
-}
-.replay {
-  color:#48714c;
-  background:transparent;
-  font-size:10px;
-  padding:5px;
-  white-space:nowrap
-}
-.interview-result {
-  background:#f2f7ed;
-  border:1px solid #dfebd6;
-  border-radius:8px;
-  padding:16px;
-  min-height:265px
-}
-.result-heading {
-  display:flex;
-  align-items:center;
-  gap:7px;
-  font-size:11px;
-  margin-bottom:15px
-}
-.result-heading .icon {
-  width:14px;
-  height:14px;
-  color:#487241
-}
-.dimension-result {
-  display:flex;
-  justify-content:space-between;
-  font-size:11px;
-  align-items:center
-}
-.interview-result>p {
-  font-size:10px;
-  color:#5c6951;
-  margin-block:8px 14px;
-  line-height:1.8
-}
-.interview-result details {
-  border-top:1px solid #dce7d3;
-  padding-top:12px;
-  font-size:10px;
-  color:#4d6e42
-}
-.interview-result summary {
-  cursor:pointer
-}
-.interview-result blockquote {
-  margin:12px 0 0;
-  font-size:11px;
-  line-height:1.9;
-  color:#576d4d
-}
+.guide-preview-status {display:flex;align-items:center;gap:10px;font-size:10px;color:#596f50;margin-bottom:20px;flex-wrap:wrap}
+.guide-preview-step {border-top:1px solid var(--line);padding:18px 0}
+.guide-preview-step h3 {font-size:15px;line-height:1.6;letter-spacing:-.02em}
+.guide-preview-step p {font-size:11px;color:#596f50;line-height:1.9;margin-top:10px}
+.guide-preview-step blockquote {margin:16px 0 0;padding:12px 14px;border-left:2px solid #8ab778;background:#f2f7ed;font-size:11px;color:#526c48;line-height:1.8}
+.guide-preview-step blockquote small {display:block;font-size:9px;margin-top:8px}
+.guide-follow-up {background:#eef5e6;border-radius:5px;padding:12px;margin-bottom:10px}
+.demo-controls {display:flex;justify-content:space-between;gap:12px;align-items:center;margin-block:16px;font-size:9px;color:#5d7154;min-height:25px}
+.replay {color:#426444;background:transparent;font-size:10px;padding:5px;white-space:nowrap}
 .feedback-section {
   background:#f2f5ed;
   border-block:1px solid var(--line)
@@ -1869,7 +1776,7 @@ svg.icon {
   .split-section .section-heading {
     max-width:600px
   }
-  .match-panel,.github-visual,.interview-demo,.feedback-demo {
+  .match-panel,.github-visual,.guide-demo,.feedback-demo {
     width:100%;
     max-width:600px;
     margin-inline:auto
@@ -2135,7 +2042,7 @@ svg.icon {
   .workflow-mock .pill {
     font-size:8px
   }
-  .match-panel,.github-visual,.interview-demo,.feedback-demo {
+  .match-panel,.github-visual,.guide-demo,.feedback-demo {
     padding:20px
   }
   .match-score .pill {

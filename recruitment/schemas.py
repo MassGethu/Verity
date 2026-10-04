@@ -84,25 +84,18 @@ class ResumeOutput(Schema):
     requirement_matches: list[Match]
     claims: list[Claim] = Field(max_length=15)
     review_flags: list[ReviewFlag]
-class Question(Schema):
-    id: str
-    scenario: str
-    dimensions: list[str]
-    rubric: str
-class QuestionsOutput(Schema):
-    questions: list[Question] = Field(min_length=3, max_length=3)
-class Dimension(Schema):
-    dimension: str
-    level: Literal['Strong','Moderate','Limited','Insufficient evidence']
-    rationale: str
-class ResponseEvaluation(Schema):
-    question_id: str
-    dimensions: list[Dimension]
-    answer_quotes: list[str]
-    rationale: str
-class EvaluationOutput(Schema):
-    responses: list[ResponseEvaluation]
-    summary: str
+class GuideQuestion(Schema):
+    id: str = Field(min_length=1, max_length=40)
+    kind: Literal['profile', 'clarification', 'situational']
+    question: str = Field(min_length=1, max_length=2000)
+    purpose: str = Field(min_length=1, max_length=1500)
+    follow_up: str = Field(max_length=1500)
+    requirement_ids: list[int]
+    source_refs: list[Ref]
+
+class GuideOutput(Schema):
+    questions: list[GuideQuestion] = Field(min_length=4, max_length=4)
+
 class FeedbackOutput(Schema):
     strengths: list[str]
     weaknesses: list[str]

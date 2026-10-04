@@ -10,3 +10,9 @@ if(configurationNotice){
     try{sessionStorage.setItem('verity-config-notice-dismissed','1');}catch(_){}
   });
 }
+
+// Source and gap anchors open their disclosures before native anchor navigation.
+document.querySelectorAll('a[href^="#source-"],a[href^="#requirement-"],a[href="#resume-sources"],a[href="#interview-guide"]').forEach(link=>link.addEventListener('click',()=>{
+  let target=document.getElementById(link.hash.slice(1));
+  while(target){if(target.tagName==='DETAILS')target.open=true;target=target.parentElement;}
+}));

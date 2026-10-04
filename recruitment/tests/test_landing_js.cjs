@@ -1,4 +1,4 @@
-/* Exercise fallback, deadline cleanup and live motion preferences without a
+/* Exercise fallback, playback cleanup and live motion preferences without a
    browser dependency. Visual Motion behavior is checked in the real browser. */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -36,16 +36,17 @@ function fixture({motionAvailable = false, reduced = false} = {}) {
   }
   const fit = new Element('Rubric fit', {sort:'fit'}), evidence = new Element('Evidence', {sort:'evidence'});
   fit.setAttribute('aria-pressed', 'true'); evidence.setAttribute('aria-pressed', 'false');
-  const interview = new Element('', {demo:'interview'}), feedback = new Element('', {demo:'feedback'});
-  const answer = new Element('I would assess customer impact, pause the release, communicate with the team, and agree on a fix and validation plan.');
-  const result = new Element(), timer = new Element('01:42'), interviewState = new Element(), interviewReplay = new Element();
-  Object.assign(interview.selectors, {'[data-replay]':interviewReplay,'[data-sample-answer]':answer,'[data-demo-result]':result,'[data-demo-timer]':timer,'[data-demo-state]':interviewState});
+  const guide = new Element('', {demo:'guide'}), feedback = new Element('', {demo:'feedback'});
+  const followUp = new Element('Follow-up: How did you test access restrictions?');
+  const steps = [new Element(),new Element(),new Element()];
+  const guideState = new Element(), guideReplay = new Element();
+  Object.assign(guide.selectors, {'[data-replay]':guideReplay,'.guide-preview-step':steps,'[data-guide-follow-up]':followUp,'[data-guide-demo-state]':guideState});
   const sentence = new Element('Document a deployed project, including your Docker setup.'), gmail = new Element(), feedbackState = new Element(), feedbackReplay = new Element();
   Object.assign(feedback.selectors, {'[data-replay]':feedbackReplay,'[data-edited-sentence]':sentence,'[data-gmail-preview]':gmail,'[data-feedback-state]':feedbackState,'.email-preview p':[sentence]});
   const workflow = new Element(), track = new Element(), score = new Element('86',{score:'86'});
   workflow.selectors['.workflow-track i'] = track;
   const doc = new Element();
-  Object.assign(doc.selectors, {'.site-header':header,'.menu-toggle':menu,'#site-navigation':nav,'[data-ranking]':ranking,'[data-sort]':[fit,evidence],'[data-ranking-status]':new Element(),'[data-demo]':[interview,feedback],'[data-workflow]':workflow,'.workflow-track i':track,'[data-score]':score});
+  Object.assign(doc.selectors, {'.site-header':header,'.menu-toggle':menu,'#site-navigation':nav,'[data-ranking]':ranking,'[data-sort]':[fit,evidence],'[data-ranking-status]':new Element(),'[data-demo]':[guide,feedback],'[data-workflow]':workflow,'.workflow-track i':track,'[data-score]':score});
   const schedule = (fn, delay, interval = false) => { const id = ++nextId; pending.set(id,{fn,at:now+delay,delay,interval}); return id; };
   const advance = ms => {
     const end = now + ms;
@@ -66,7 +67,7 @@ function fixture({motionAvailable = false, reduced = false} = {}) {
   };
   const window = {Motion:motionAvailable ? motion : undefined,matchMedia:query => query.includes('reduced-motion') ? preference : compact,addEventListener:()=>{}};
   vm.runInNewContext(source, {window,document:doc,performance:{now:()=>now},setTimeout:(fn,ms)=>schedule(fn,ms),setInterval:(fn,ms)=>schedule(fn,ms,true),clearTimeout:id=>pending.delete(id),clearInterval:id=>pending.delete(id),Promise,fetch:()=>{throw Error('Landing must not make requests');}});
-  return {menu,header,nav,link,ranking,fit,evidence,answer,result,timer,interview,interviewState,interviewReplay,feedback,feedbackReplay,feedbackState,sentence,gmail,preference,pending,views,advance,focus:()=>focused,cancelled:()=>cancelled};
+  return {menu,header,nav,link,ranking,fit,evidence,guide,guideState,guideReplay,followUp,steps,feedback,feedbackReplay,feedbackState,sentence,gmail,preference,pending,views,advance,focus:()=>focused,cancelled:()=>cancelled};
 }
 
 for (const settings of [{}, {motionAvailable:true,reduced:true}]) {
@@ -75,30 +76,28 @@ for (const settings of [{}, {motionAvailable:true,reduced:true}]) {
   assert.deepEqual(f.ranking.children.map(e=>e.dataset.candidate), ['priya','rahul','arjun']);
   assert.deepEqual(f.ranking.children.map(e=>e.dataset.fit), ['91','84','87']);
   assert.equal(f.evidence.getAttribute('aria-pressed'), 'true');
-  f.interviewReplay.events.click(); f.feedbackReplay.events.click();
+  f.guideReplay.events.click(); f.feedbackReplay.events.click();
   assert.equal(f.pending.size, 0, 'Fallback and reduced motion cannot start timers');
-  assert.equal(f.result.inert, false);
-  assert.equal(f.timer.textContent, '01:42');
+  assert.match(f.guideState.textContent, /Guide prepared/);
   assert.match(f.feedbackState.textContent, /saved/);
   f.menu.events.click(); assert.equal(f.menu.getAttribute('aria-expanded'), 'true');
   f.header.events.keydown({key:'Escape'}); assert.equal(f.menu.getAttribute('aria-expanded'), 'false'); assert.equal(f.focus(), f.menu);
 }
 {
   const f = fixture({motionAvailable:true});
-  const original = f.answer.textContent;
-  const leave = f.views.get(f.interview)();
+  const original = f.followUp.textContent;
+  const leave = f.views.get(f.guide)();
   f.advance(1200);
-  assert.ok(f.answer.textContent.length > 0 && f.answer.textContent.length < original.length);
-  assert.equal(f.timer.textContent, '01:41');
-  assert.equal(f.result.inert, true);
+  assert.notEqual(f.followUp.textContent, original);
+  assert.match(f.guideState.textContent, /Shortlisted/);
   leave();
-  assert.equal(f.pending.size, 0); assert.equal(f.answer.textContent, original); assert.equal(f.result.inert, false);
-  f.interviewReplay.events.click(); f.advance(6000); assert.equal(f.result.inert, false);
-  f.advance(1500); assert.equal(f.pending.size, 0); assert.equal(f.interviewReplay.disabled, false);
+  assert.equal(f.pending.size, 0); assert.equal(f.followUp.textContent, original);
+  f.guideReplay.events.click(); f.advance(4200);
+  assert.equal(f.pending.size, 0); assert.equal(f.guideReplay.disabled, false);
   f.feedbackReplay.events.click(); f.advance(2300); assert.match(f.sentence.textContent, /Docker/);
   f.preference.matches = true; f.preference.change();
   assert.equal(f.pending.size, 0, 'Changing reduced motion clears active playbacks');
   assert.equal(f.gmail.style.opacity, ''); assert.equal(f.feedbackReplay.disabled, false); assert.ok(f.cancelled() > 0);
-  f.interviewReplay.events.click(); assert.equal(f.pending.size, 0);
+  f.guideReplay.events.click(); assert.equal(f.pending.size, 0);
 }
 console.log('Landing fallback, ranking, menu, bounded playback, viewport exit and reduced-motion change: passed');
