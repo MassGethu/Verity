@@ -20,7 +20,7 @@ python manage.py seed_demo
 python manage.py runserver 127.0.0.1:8000
 ```
 
-Open http://127.0.0.1:8000/. No recruiter login is required for this localhost-only demo. Do not expose this development configuration to a public network.
+Open http://127.0.0.1:8000/ for the public landing page, or http://127.0.0.1:8000/dashboard/ for the recruiter workspace. No recruiter login is required for this localhost-only demo. Do not expose this development configuration to a public network.
 
 `requirements-lock.txt` records the exact tested environment; `requirements.txt` provides compatible installation ranges. Keep `.env`, SQLite, and uploaded media out of version control.
 
@@ -71,6 +71,14 @@ Existing jobs are preserved when rerunning the seed command. The GitHub option i
 | Gita Nair | Same evidence as Asha and equal score, no GitHub penalty |
 
 A few clearly synthetic interview answers entered during browser verification may be present in the current local database. Fresh installations start with ready candidates; interviews are created through candidate detail.
+
+## Public landing page
+
+The root route presents the product; `/dashboard/` preserves the operational recruiter overview. Existing job, application, and interview URLs are unchanged. Marketing candidate profiles, scores, interview playback, and feedback are labelled illustrative and never call providers or mutate application records. “Explore synthetic demo” appears only when a job contains `demo-fixture` applications.
+
+The landing page has its own CSS and JavaScript. Motion **12.23.24** is pinned locally in `static/vendor/motion/`, with its MIT license; no npm install, build, or runtime CDN is needed. Google Fonts are optional and system fonts work offline. Content remains visible without JavaScript or Motion, and reduced-motion settings skip choreography. Interview/feedback playbacks finish on viewport exit or tab hiding and offer explicit replay.
+
+Run the existing server command after pulling these changes; no migrations or additional dependencies are needed. The missing-provider notice can be dismissed for the current browser session. Synthetic job titles are simplified only for dashboard display and retain a visible synthetic-data badge.
 
 ## Features
 
@@ -168,6 +176,7 @@ The recruiter edits and saves subject/body/recipient. Any unsaved edit disables 
 python manage.py check
 python manage.py test
 node recruitment/tests/test_feedback_js.cjs
+node recruitment/tests/test_landing_js.cjs
 ```
 
 Focused automated tests cover score weighting, threshold attainment, interval union, aliases, parent caps, exact quotes, incomplete JSON, provider fallback, missing keys, invalid PDFs, duplicates, filtering, stale analyses, weight edits, GitHub cache/failure neutrality, interview refresh/deadline/revisions/submission, evaluation failures, decisions and feedback persistence.

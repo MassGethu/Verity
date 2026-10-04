@@ -15,9 +15,23 @@ from .services import ai_service, resume_service, github_service, interview_serv
 from .services.providers import configured
 from .services.scoring_service import VALUES
 
+def landing(request):
+    demo_job = Job.objects.filter(applications__provider='demo-fixture').distinct().order_by('-created_at').first()
+    return render(request, 'recruitment/landing.html', {'demo_job': demo_job})
+
 def home(request):
-    jobs=Job.objects.order_by('-created_at').prefetch_related('applications')
-    return render(request,'recruitment/home.html',{'jobs':jobs,'ai_configured':configured(),'application_count':Application.objects.count(),'complete_count':Application.objects.filter(processing_status='complete').count()})
+    jobs = list(Job.objects.order_by('-created_at').prefetch_related('applications', 'requirements'))
+    for job in jobs:
+        job.is_synthetic_demo = any(app.provider == 'demo-fixture' for app in job.applications.all())
+        job.display_title = job.title
+        if job.is_synthetic_demo:
+            job.display_title = job.title.removesuffix(' · Synthetic evidence demo')
+    return render(request, 'recruitment/home.html', {
+        'jobs': jobs, 'ai_configured': configured(),
+        'application_count': Application.objects.count(),
+        'pending_count': Application.objects.filter(decision_status='pending').count(),
+        'interview_count': Interview.objects.count(),
+    })
 
 def job_create(request):
     form=JobForm(request.POST or None)
