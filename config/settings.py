@@ -1,4 +1,5 @@
 from pathlib import Path
+from urllib.parse import urlparse
 import os
 from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -18,7 +19,8 @@ if PRODUCTION:
     from django.core.exceptions import ImproperlyConfigured
     if not SECRET_KEY or not VERITY_JUDGE_PASSWORD:
         raise ImproperlyConfigured('Production requires DJANGO_SECRET_KEY and VERITY_JUDGE_PASSWORD.')
-    if not os.getenv('DATABASE_URL', '').startswith(('postgres://', 'postgresql://')) or not SUPABASE_URL.startswith('https://') or not SUPABASE_SERVICE_ROLE_KEY:
+    supabase_origin = urlparse(SUPABASE_URL)
+    if not os.getenv('DATABASE_URL', '').startswith(('postgres://', 'postgresql://')) or supabase_origin.scheme != 'https' or not (supabase_origin.hostname or '').endswith('.supabase.co') or supabase_origin.path not in ['', '/'] or not SUPABASE_SERVICE_ROLE_KEY:
         raise ImproperlyConfigured('Production requires PostgreSQL and private Supabase Storage settings.')
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_SSL_REDIRECT = True

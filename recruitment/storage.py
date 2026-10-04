@@ -35,7 +35,10 @@ def object_path(name):
 def signed_url(name, upload=False):
     path = 'object/upload/sign/' if upload else 'object/sign/'
     with storage_request('POST', path + object_path(name), json={'expiresIn': 300, 'upsert': False}) as response:
-        data = response.json()
+        try:
+            data = response.json()
+        except ValueError:
+            raise StorageUnavailable('Private storage returned an unexpected response. Check the project API URL.')
     value = data.get('signedURL') or data.get('signedUrl') or data.get('url')
     if not value:
         raise StorageUnavailable('Private storage did not return a signed URL.')
