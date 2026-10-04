@@ -221,3 +221,7 @@ For live AI demonstration, use a separately seeded `--live` job or upload one fr
 - Provider calls can still be slow or unavailable. SQLite/browser-driven processing is intended for small local batches.
 
 Future work: DOCX/OCR, user access control, durable workers, more nuanced evidence review, candidate-consented professional links, and evaluated fairness/accuracy benchmarks. Social personality scoring is not planned.
+
+## Public hackathon deployment
+
+Vercel + Supabase support is available; see [deployment instructions](docs/deployment.md). Local development keeps SQLite unless `VERITY_USE_SUPABASE=1` is set. Hosted mode requires PostgreSQL, private Supabase PDF storage, a strong secret key and a judge workspace password. Hosted uploads go directly to private storage using short-lived signed URLs, avoiding Vercel request-size limits. The public landing page remains open. Do not deploy without checking the live flow and persistence.

@@ -1,6 +1,11 @@
 from django.urls import path
 from . import views
 urlpatterns=[
+ path('health/', views.health, name='health'),
+ path('workspace-login/', views.workspace_login, name='workspace_login'),
+ path('workspace-logout/', views.workspace_logout, name='workspace_logout'),
+ path('jobs/<int:pk>/upload/prepare/', views.upload_prepare, name='upload_prepare'),
+ path('jobs/<int:pk>/upload/complete/', views.upload_complete, name='upload_complete'),
  path('',views.landing,name='home'),path('dashboard/',views.home,name='dashboard'),path('jobs/new/',views.job_create,name='job_create'),
  path('jobs/<int:pk>/setup/',views.job_setup,name='job_setup'),path('jobs/<int:pk>/',views.workspace,name='workspace'),path('jobs/<int:pk>/upload/',views.upload,name='upload'),
  path('applications/<int:pk>/',views.candidate_detail,name='candidate'),path('applications/<int:pk>/process/',views.process,name='process'),path('applications/<int:pk>/resume/',views.resume_file,name='resume'),

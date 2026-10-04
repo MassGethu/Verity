@@ -6,3 +6,5 @@ groq>=0.30,<2
 requests>=2.32,<3
 python-dotenv>=1,<2
 reportlab>=4,<6
+dj-database-url>=2.3,<4
+psycopg[binary]>=3.2,<4

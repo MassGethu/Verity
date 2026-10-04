@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+.venv
+media
+output
+tmp
+docs/screenshots
+db.sqlite3
+__pycache__
+.git

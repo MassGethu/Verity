@@ -4,6 +4,7 @@ from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.http import JsonResponse, FileResponse, HttpResponseBadRequest
+from django.conf import settings
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -91,11 +92,14 @@ def workspace(request,pk):
     for a in apps:
         if a.processing_status in ['queued','failed','stale'] or (a.processing_status=='processing' and a.processing_started_at and now-a.processing_started_at>timedelta(seconds=90)):
             pending.append({'id':a.pk,'name':a.name,'url':reverse('process',args=[a.pk])})
-    return render(request,'recruitment/workspace.html',{'job':job,'applications':filtered,'all_count':len(apps),'ranked_count':len(ranked),'pending_apps':[a for a in apps if a not in ranked],'processing_queue':pending,'requirements':job.requirements.all(),'ai_configured':configured(),'statuses':['pending','shortlisted','hold','rejected']})
+    return render(request,'recruitment/workspace.html',{'job':job,'applications':filtered,'all_count':len(apps),'ranked_count':len(ranked),'pending_apps':[a for a in apps if a not in ranked],'processing_queue':pending,'requirements':job.requirements.all(),'ai_configured':configured(),'statuses':['pending','shortlisted','hold','rejected'],'cloud_upload':settings.USE_SUPABASE})
 
 @require_POST
 def upload(request,pk):
     job=get_object_or_404(Job,pk=pk)
+    if settings.USE_SUPABASE:
+        messages.error(request,'Use the direct upload control; JavaScript is required for hosted uploads.')
+        return redirect('workspace',pk=pk)
     if not job.requirements_approved: messages.error(request,'Approve requirements before uploading.'); return redirect('job_setup',pk=pk)
     files=request.FILES.getlist('resumes')
     if not files or len(files)>10: messages.error(request,'Select between one and ten PDFs.'); return redirect('workspace',pk=pk)
@@ -134,6 +138,17 @@ def candidate_detail(request,pk):
 
 def resume_file(request,pk):
     app=get_object_or_404(Application,pk=pk)
+    if settings.USE_SUPABASE:
+        from .storage import signed_url, StorageUnavailable
+        from urllib.parse import urlencode
+        try:
+            url=signed_url(app.original_file.name)
+            if request.GET.get('download'): url+='&'+urlencode({'download':app.filename})
+            response=redirect(url)
+            response['Cache-Control']='no-store'
+            return response
+        except StorageUnavailable as exc:
+            return HttpResponseBadRequest(str(exc))
     return FileResponse(app.original_file.open('rb'),content_type='application/pdf',as_attachment=request.GET.get('download')=='1',filename=app.filename)
 
 @require_POST
@@ -227,3 +242,59 @@ def feedback(request,pk):
         return redirect('feedback',pk=pk)
     compose={'email':app.candidate.get('email') or '', 'subject':draft.subject,'body':draft.body}
     return render(request,'recruitment/feedback.html',{'application':app,'job':app.job,'draft':draft,'compose':compose,'stale':draft.context_revision!=app.job.requirements_revision})
+
+
+def workspace_login(request):
+    from django.conf import settings
+    from django.utils.crypto import constant_time_compare
+    from .access import access_stamp
+    if not settings.VERITY_JUDGE_PASSWORD:
+        return redirect('dashboard')
+    error = ''
+    if request.method == 'POST':
+        if constant_time_compare(request.POST.get('password', ''), settings.VERITY_JUDGE_PASSWORD):
+            request.session.flush()
+            request.session['workspace_access'] = access_stamp()
+            request.session.set_expiry(8 * 60 * 60)
+            return redirect('dashboard')
+        error = 'Incorrect workspace password.'
+    return render(request, 'recruitment/workspace_login.html', {'standalone': True, 'error': error})
+
+
+@require_POST
+def workspace_logout(request):
+    request.session.flush()
+    return redirect('home')
+
+
+def health(request):
+    return JsonResponse({'status': 'ok'})
+
+
+@require_POST
+def upload_prepare(request, pk):
+    from django.conf import settings
+    from .services.cloud_upload_service import prepare
+    if not settings.USE_SUPABASE:
+        return JsonResponse({'error': 'Direct storage uploads are unavailable locally.'}, status=404)
+    job = get_object_or_404(Job, pk=pk)
+    try:
+        data = json.loads(request.body)
+        return JsonResponse({'uploads': prepare(job, data.get('files'))})
+    except (ValueError, TypeError, AttributeError):
+        return JsonResponse({'error': 'Upload preparation failed. Check PDF types, 5 MB limit, approved requirements and storage configuration.'}, status=400)
+
+
+@require_POST
+def upload_complete(request, pk):
+    from django.conf import settings
+    from .services.cloud_upload_service import complete
+    if not settings.USE_SUPABASE:
+        return JsonResponse({'error': 'Direct storage uploads are unavailable locally.'}, status=404)
+    job = get_object_or_404(Job, pk=pk)
+    try:
+        data = json.loads(request.body)
+        app = complete(job, data.get('ticket'))
+        return JsonResponse({'id': app.pk, 'name': app.name, 'status': app.processing_status})
+    except (ValueError, TypeError, AttributeError) as exc:
+        return JsonResponse({'error': str(exc) if isinstance(exc, ValueError) else 'Invalid upload request.'}, status=400)
